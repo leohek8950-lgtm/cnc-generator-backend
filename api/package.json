@@ -1,1 +1,6 @@
-
+{
+  "name": "cnc-generator-backend",
+  "version": "1.0.0",
+  "description": "CNC G-Code Generator Backend",
+  "main": "api/generate-gcode.js"
+}
