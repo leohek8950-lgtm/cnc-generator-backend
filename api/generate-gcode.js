@@ -1,8 +1,14 @@
-// api/generate-gcode.js - Vercel Serverless Function
-// Это backend, который устраняет CORS проблему
-
 export default async function handler(req, res) {
-  // Только POST запросы
+  // CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -10,20 +16,15 @@ export default async function handler(req, res) {
   const { prompt } = req.body;
 
   if (!prompt) {
-    return res.status(400).json({ error: 'Prompt is required' });
+    return res.status(400).json({ error: 'No prompt' });
   }
 
   try {
-    // Берём API ключ из переменных окружения
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    
     if (!apiKey) {
-      return res.status(500).json({ 
-        error: 'API key not configured. Set ANTHROPIC_API_KEY in Vercel environment variables.' 
-      });
+      return res.status(500).json({ error: 'No API key configured' });
     }
 
-    // Запрос к Claude API
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -34,33 +35,19 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 2500,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
+        messages: [{role: 'user', content: prompt}],
       }),
     });
 
+    const data = await response.json();
+
     if (!response.ok) {
-      const errorData = await response.json();
-      return res.status(response.status).json({ 
-        error: `Claude API error: ${errorData.error?.message || response.statusText}` 
-      });
+      return res.status(response.status).json({error: data.error?.message || 'API error'});
     }
 
-    const data = await response.json();
-    const generatedCode = data.content[0]?.text || '';
-
-    return res.status(200).json({
-      success: true,
-      code: generatedCode,
-    });
+    const code = data.content[0]?.text || '';
+    res.status(200).json({success: true, code});
   } catch (error) {
-    console.error('Error:', error);
-    return res.status(500).json({ 
-      error: `Server error: ${error.message}` 
-    });
+    res.status(500).json({error: error.message});
   }
 }
