@@ -1,14 +1,17 @@
 export default async function handler(req, res) {
-  // CORS
+  // === CORS ЗАГОЛОВКИ ===
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+  
+  // OPTIONS запрос для preflight
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
   }
 
+  // Только POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -21,8 +24,10 @@ export default async function handler(req, res) {
 
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY;
+    
     if (!apiKey) {
-      return res.status(500).json({ error: 'No API key configured' });
+      console.error('API key missing');
+      return res.status(500).json({ error: 'API key not configured' });
     }
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -35,19 +40,34 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 2500,
-        messages: [{role: 'user', content: prompt}],
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
       }),
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      return res.status(response.status).json({error: data.error?.message || 'API error'});
+      return res.status(response.status).json({
+        error: data.error?.message || 'API Error',
+      });
     }
 
     const code = data.content[0]?.text || '';
-    res.status(200).json({success: true, code});
+
+    return res.status(200).json({
+      success: true,
+      code: code,
+    });
+
   } catch (error) {
-    res.status(500).json({error: error.message});
+    console.error('Backend error:', error);
+    return res.status(500).json({
+      error: error.message,
+    });
   }
 }
